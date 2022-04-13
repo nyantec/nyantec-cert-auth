@@ -66,24 +66,15 @@ pub struct Claims {
     pub iat: u64,
 }
 
-/// Represents a set of allowed permissions.
+/// Represents a set of permissions.
 ///
-/// A user is allowed by the client certificate validation if at least one of the following
-/// conditions are met:
-/// - The client certificate's uid matches any of the `allowed_uids`
-/// - The domain part of the client certificate's email address (found in the
-///   *Subject Alternative Name* field) matches any of the `allowed_emails`.
+/// A user is allowed by the client certificate validation if the client certificate's uid matches
+/// any of the `allowed_uids`.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Permissions {
     /// Represents a list of allowed uids.
     #[serde(default)]
     pub allowed_uids: Vec<String>,
-
-    /// Represents a list of allowed email address suffixes
-    ///
-    /// The part **behind** the `@` will be used for comparison.
-    #[serde(default)]
-    pub allowed_emails: Vec<String>,
 }
 
 /// Parses a given X.509 Client Certificate and returns a Struct of parsed claims.
@@ -130,25 +121,12 @@ pub fn get_claims(req: Request<Body>) -> crate::Result<Claims> {
 }
 
 /// Returns Ok if and only if the user matches any of the provided allowed user ids.
-pub fn is_allowed_by_uid(user: &Claims, permisisons: &Permissions) -> crate::Result<()> {
-    if permisisons.allowed_uids.is_empty() {
+pub fn is_allowed_by_uid(user: &Claims, permissions: &Permissions) -> crate::Result<()> {
+    if permissions.allowed_uids.is_empty() {
         return Err(CustomError::PermissionEmptyError);
     }
 
-    if permisisons.allowed_uids.iter().any(|u| u.eq(&user.uid)) {
-        Ok(())
-    } else {
-        Err(CustomError::PermissionNotMatchedError)
-    }
-}
-
-/// Returns Ok if and only if the provided user matches any of the allowed email addresses.
-pub fn is_allowed_by_email(user: &Claims, permissions: &Permissions) -> crate::Result<()> {
-    if permissions.allowed_emails.is_empty() {
-        return Err(CustomError::PermissionEmptyError);
-    }
-
-    if permissions.allowed_emails.iter().any(|email| user.email.ends_with(email)) {
+    if permissions.allowed_uids.iter().any(|u| u.eq(&user.uid)) {
         Ok(())
     } else {
         Err(CustomError::PermissionNotMatchedError)
@@ -157,10 +135,7 @@ pub fn is_allowed_by_email(user: &Claims, permissions: &Permissions) -> crate::R
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        CustomError, is_allowed_by_email, is_allowed_by_uid,
-        Permissions, Claims
-    };
+    use crate::{CustomError, is_allowed_by_uid, Permissions, Claims};
 
     #[test]
     fn test_is_allowed_by_uid() {
@@ -181,11 +156,9 @@ mod tests {
 
         let permissions = Permissions {
             allowed_uids: vec![user_allowed.uid.clone()],
-            allowed_emails: vec![],
         };
         let permissions_empty = Permissions {
             allowed_uids: vec![],
-            allowed_emails: vec![],
         };
 
         assert_eq!(
@@ -194,46 +167,6 @@ mod tests {
         );
         assert_eq!(
             is_allowed_by_uid(&user_denied, &permissions).is_ok(),
-            Err::<(), CustomError>(CustomError::PermissionNotMatchedError).is_ok()
-        );
-        assert_eq!(
-            is_allowed_by_uid(&user_allowed, &permissions_empty).is_ok(),
-            Err::<(), CustomError>(CustomError::PermissionEmptyError).is_ok()
-        )
-    }
-
-    #[test]
-    fn test_is_allowed_by_email() {
-        let user_allowed = Claims {
-            email: "nya@nyantec.com".to_string(),
-            name: "Some Name".to_string(),
-            uid: "nya".to_string(),
-            exp: 0,
-            iat: 0,
-        };
-        let user_denied = Claims {
-            email: "nyet@notallowed.com".to_string(),
-            name: "Some Name".to_string(),
-            uid: "nyet".to_string(),
-            exp: 0,
-            iat: 0,
-        };
-
-        let permissions = Permissions {
-            allowed_uids: vec![],
-            allowed_emails: vec![user_allowed.email.clone()],
-        };
-        let permissions_empty = Permissions {
-            allowed_uids: vec![],
-            allowed_emails: vec![],
-        };
-
-        assert_eq!(
-            is_allowed_by_email(&user_allowed, &permissions).is_ok(),
-            Ok::<_, CustomError>(()).is_ok()
-        );
-        assert_eq!(
-            is_allowed_by_email(&user_denied, &permissions).is_ok(),
             Err::<(), CustomError>(CustomError::PermissionNotMatchedError).is_ok()
         );
         assert_eq!(
