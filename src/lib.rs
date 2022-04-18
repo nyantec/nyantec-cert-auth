@@ -3,37 +3,51 @@
 //! A library for parsing X.509 Client Certificates
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use custom_error::custom_error;
-use hyper::{
-    Body,
-    header,
-    Request,
-};
+use hyper::{header, Body, Request};
 use serde_derive::{Deserialize, Serialize};
+use thiserror::Error;
 use x509_parser::pem::Pem;
 
 use crate::certificate_parser::{get_email_from_dn, get_email_from_san, get_uid};
 
 mod certificate_parser;
 
-custom_error! {pub CustomError
-    SystemTimeError{source: std::time::SystemTimeError} = "System time is before unix time",
-    ToStrError{source: header::ToStrError} = "Error converting header value to string: {source}",
-    MissingHeader = "Missing x-ssl-client-escaped-cert header",
-    NoCertificate = "No certificate given",
-    InvalidSAN = "SAN exists but could not be parsed",
-    NoEmail = "Could not get email from certificate",
-    NoCommonName = "Certificate has no Common Name",
-    UrlEncoding{source: urlencoding::FromUrlEncodingError} = "Invalid urlencoding {source}",
-    PEM{source: x509_parser::prelude::PEMError} = "Decoding cert: {source}",
-    X509{source: x509_parser::prelude::X509Error} = "Decoding cert: {source}",
-    Nom{source: x509_parser::nom::Err<x509_parser::prelude::X509Error>} = "Decoding cert: {source}",
-    HttpError{source: hyper::http::Error} = "HttpError: {source}",
-    Infallible{source: std::convert::Infallible} = "",
-    Reqwest{source: reqwest::Error} = "Reqwest Error",
-    HyperError{source: hyper::Error} = "Hyper Error",
-    PermissionEmptyError = "Supplied permissions are empty",
-    PermissionNotMatchedError = "Supplied entity does not match the List of allowed entities",
+#[derive(Error, Debug)]
+pub enum CustomError {
+    #[error("System time is before unix time")]
+    SystemTimeError(#[from] std::time::SystemTimeError),
+    #[error("Error converting header value to string: {0}")]
+    ToStrError(#[from] header::ToStrError),
+    #[error("Missing x-ssl-client-escaped-cert header")]
+    MissingHeader,
+    #[error("No certificate given")]
+    NoCertificate,
+    #[error("SAN exists but could not be parsed")]
+    InvalidSAN,
+    #[error("Could not get email from certificate")]
+    NoEmail,
+    #[error("Certificate has no Common Name")]
+    NoCommonName,
+    #[error("Invalid urlencoding {0}")]
+    UrlEncoding(#[from] urlencoding::FromUrlEncodingError),
+    #[error("Decoding cert: {0}")]
+    PEM(#[from] x509_parser::prelude::PEMError),
+    #[error("Decoding cert: {0}")]
+    X509(#[from] x509_parser::prelude::X509Error),
+    #[error("Decoding cert: {0}")]
+    Nom(#[from] x509_parser::nom::Err<x509_parser::prelude::X509Error>),
+    #[error("HttpError: {0}")]
+    HttpError(#[from] hyper::http::Error),
+    #[error("")]
+    Infallible(#[from] std::convert::Infallible),
+    #[error("Reqwest Error")]
+    Reqwest(#[from] reqwest::Error),
+    #[error("Hyper Error")]
+    HyperError(#[from] hyper::Error),
+    #[error("Supplied permissions are empty")]
+    PermissionEmptyError,
+    #[error("Supplied entity does not match the List of allowed entities")]
+    PermissionNotMatchedError,
 }
 
 /// Custom Error Wrapper Type
@@ -135,7 +149,7 @@ pub fn is_allowed_by_uid(user: &Claims, permissions: &Permissions) -> crate::Res
 
 #[cfg(test)]
 mod tests {
-    use crate::{CustomError, is_allowed_by_uid, Permissions, Claims};
+    use crate::{is_allowed_by_uid, Claims, CustomError, Permissions};
 
     #[test]
     fn test_is_allowed_by_uid() {
