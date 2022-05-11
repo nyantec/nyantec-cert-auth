@@ -3,6 +3,8 @@ name = "nyantec-cert-auth"
 version = "0.1.0"
 authors = ["The cert-auth Authors <oss@nyantec.com>"]
 edition = "2021"
+description = "A library for parsing X.509 Client Certificates"
+repository = "https://github.com/nyantec/nyantec-cert-auth"
 license = "MirOS"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
